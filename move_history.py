@@ -11,7 +11,7 @@ class MoveHistory:
         self._title_font = pygame.font.SysFont("Segoe UI", 18, bold=True)
         self.scroll_offset = 0
         self._line_h = 22
-        self._top = 200
+        self._top = 360
         self._bottom = WINDOW_HEIGHT - 30
         self._visible_h = self._bottom - self._top
 
