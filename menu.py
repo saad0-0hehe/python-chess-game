@@ -13,12 +13,23 @@ from constants import (
 import theme as th
 
 
+# ── Icon font (shared, created once) ──────────────────────────────
+_icon_font = None
+
+def _get_icon_font():
+    global _icon_font
+    if _icon_font is None:
+        _icon_font = pygame.font.SysFont("Segoe UI Symbol", 20)
+    return _icon_font
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  Reusable button
 # ═══════════════════════════════════════════════════════════════════
 class _Button:
     def __init__(self, text, x, y, w, h, font, *, colour=(70, 75, 80),
-                 hover=(100, 170, 90), text_col=WHITE, icon=None):
+                 hover=(100, 170, 90), text_col=WHITE, icon=None,
+                 icon_col=None):
         self.text = text
         self.rect = pygame.Rect(x, y, w, h)
         self.colour = colour
@@ -26,7 +37,8 @@ class _Button:
         self.text_col = text_col
         self._font = font
         self._hovered = False
-        self.icon = icon  # optional icon text
+        self.icon = icon              # single unicode char for icon
+        self.icon_col = icon_col      # optional separate icon colour
 
     def draw(self, surface, mx, my, tick=0):
         self._hovered = self.rect.collidepoint(mx, my)
@@ -48,11 +60,25 @@ class _Button:
         border_col = (255, 255, 255, 35) if not self._hovered else (255, 255, 255, 70)
         pygame.draw.rect(surface, border_col, r, 1, border_radius=10)
 
-        # Render text
+        # Render label text
         lbl = self._font.render(self.text, True, self.text_col)
-        tx = r.centerx - lbl.get_width() // 2
-        ty = r.centery - lbl.get_height() // 2
-        surface.blit(lbl, (tx, ty))
+
+        if self.icon:
+            # Render icon with the symbol font
+            ic_font = _get_icon_font()
+            ic_col = self.icon_col if self.icon_col else self.text_col
+            ic_surf = ic_font.render(self.icon, True, ic_col)
+            gap = 8
+            total_w = ic_surf.get_width() + gap + lbl.get_width()
+            start_x = r.centerx - total_w // 2
+            iy = r.centery - ic_surf.get_height() // 2
+            ty = r.centery - lbl.get_height() // 2
+            surface.blit(ic_surf, (start_x, iy))
+            surface.blit(lbl, (start_x + ic_surf.get_width() + gap, ty))
+        else:
+            tx = r.centerx - lbl.get_width() // 2
+            ty = r.centery - lbl.get_height() // 2
+            surface.blit(lbl, (tx, ty))
 
     def clicked(self, pos):
         return self.rect.collidepoint(pos)
@@ -94,12 +120,15 @@ class MainMenu(MenuBase):
         bw, bh = 260, 52
         by = 400
         gap = 64
-        self.btn_play = _Button("♟  New Game", cx - bw // 2, by, bw, bh, self.btn_font,
-                                colour=(45, 80, 45), hover=(60, 140, 60))
-        self.btn_settings = _Button("⚙  Settings", cx - bw // 2, by + gap, bw, bh, self.btn_font,
-                                    colour=(55, 60, 70), hover=(80, 100, 130))
-        self.btn_quit = _Button("✕  Quit", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
-                                colour=(100, 40, 40), hover=(160, 50, 50))
+        self.btn_play = _Button("New Game", cx - bw // 2, by, bw, bh, self.btn_font,
+                                colour=(45, 80, 45), hover=(60, 140, 60),
+                                icon="\u265F")  # ♟ black chess pawn
+        self.btn_settings = _Button("Settings", cx - bw // 2, by + gap, bw, bh, self.btn_font,
+                                    colour=(55, 60, 70), hover=(80, 100, 130),
+                                    icon="\u2699")  # ⚙ gear
+        self.btn_quit = _Button("Quit", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
+                                colour=(100, 40, 40), hover=(160, 50, 50),
+                                icon="\u2716")  # ✖ heavy X
 
         # Background image
         self._bg_img = None
@@ -202,12 +231,15 @@ class ModeSelectMenu(MenuBase):
         bw, bh = 280, 52
         by = 320
         gap = 72
-        self.btn_pvp = _Button("♟  Player vs Player", cx - bw // 2, by, bw, bh, self.btn_font,
-                               colour=(55, 70, 55), hover=(70, 140, 70))
-        self.btn_pvai = _Button("🤖  Player vs AI", cx - bw // 2, by + gap, bw, bh, self.btn_font,
-                                colour=(55, 60, 75), hover=(70, 100, 160))
-        self.btn_back = _Button("←  Back", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
-                                colour=(90, 80, 80), hover=(130, 110, 110))
+        self.btn_pvp = _Button("Player vs Player", cx - bw // 2, by, bw, bh, self.btn_font,
+                               colour=(55, 70, 55), hover=(70, 140, 70),
+                               icon="\u2659")  # ♙ white pawn
+        self.btn_pvai = _Button("Player vs AI", cx - bw // 2, by + gap, bw, bh, self.btn_font,
+                                colour=(55, 60, 75), hover=(70, 100, 160),
+                                icon="\u265E")  # ♞ black knight
+        self.btn_back = _Button("Back", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
+                                colour=(90, 80, 80), hover=(130, 110, 110),
+                                icon="\u2190")  # ← left arrow
 
     def draw(self, surface, tick):
         t = th.active_theme()
@@ -241,14 +273,18 @@ class DifficultyMenu(MenuBase):
         by = 280
         gap = 80
 
-        self.btn_easy = _Button("🟢  Easy", cx - bw // 2, by, bw, bh, self.btn_font,
-                                colour=(40, 80, 40), hover=(60, 130, 60))
-        self.btn_medium = _Button("🟡  Medium", cx - bw // 2, by + gap, bw, bh, self.btn_font,
-                                  colour=(100, 85, 30), hover=(160, 140, 40))
-        self.btn_hard = _Button("🔴  Hard", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
-                                colour=(100, 35, 35), hover=(170, 50, 50))
-        self.btn_back = _Button("←  Back", cx - bw // 2, by + gap * 3, bw, bh, self.btn_font,
-                                colour=(90, 80, 80), hover=(130, 110, 110))
+        self.btn_easy = _Button("Easy", cx - bw // 2, by, bw, bh, self.btn_font,
+                                colour=(40, 80, 40), hover=(60, 130, 60),
+                                icon="\u25CF", icon_col=(80, 200, 80))   # green dot
+        self.btn_medium = _Button("Medium", cx - bw // 2, by + gap, bw, bh, self.btn_font,
+                                  colour=(100, 85, 30), hover=(160, 140, 40),
+                                  icon="\u25CF", icon_col=(230, 200, 50))  # yellow dot
+        self.btn_hard = _Button("Hard", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
+                                colour=(100, 35, 35), hover=(170, 50, 50),
+                                icon="\u25CF", icon_col=(230, 60, 60))   # red dot
+        self.btn_back = _Button("Back", cx - bw // 2, by + gap * 3, bw, bh, self.btn_font,
+                                colour=(90, 80, 80), hover=(130, 110, 110),
+                                icon="\u2190")
 
         # Difficulty descriptions
         self._descriptions = {
@@ -309,8 +345,9 @@ class SettingsMenu(MenuBase):
         self.btn_theme = _Button("", cx - bw // 2, by, bw, bh, self.btn_font)
         self.btn_sound = _Button("", cx - bw // 2, by + gap, bw, bh, self.btn_font)
         self.btn_music = _Button("", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font)
-        self.btn_back = _Button("←  Back", cx - bw // 2, by + gap * 3, bw, bh, self.btn_font,
-                                colour=(90, 80, 80), hover=(130, 110, 110))
+        self.btn_back = _Button("Back", cx - bw // 2, by + gap * 3, bw, bh, self.btn_font,
+                                colour=(90, 80, 80), hover=(130, 110, 110),
+                                icon="\u2190")
         self.sound_mgr = sound_mgr
 
     def draw(self, surface, tick):
@@ -319,9 +356,12 @@ class SettingsMenu(MenuBase):
         title = self.title_font.render("Settings", True, t["panel_txt"])
         surface.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 190))
         # update labels
-        self.btn_theme.text = f"🎨  Theme: {th.active_name()}"
-        self.btn_sound.text = f"🔊  Sound: {'ON' if self.sound_mgr.enabled else 'OFF'}"
-        self.btn_music.text = f"🎵  Music: {'ON' if self.sound_mgr.music_enabled else 'OFF'}"
+        self.btn_theme.text = f"Theme: {th.active_name()}"
+        self.btn_theme.icon = "\u2666"   # ♦ diamond
+        self.btn_sound.text = f"Sound: {'ON' if self.sound_mgr.enabled else 'OFF'}"
+        self.btn_sound.icon = "\u266A"   # ♪ music note
+        self.btn_music.text = f"Music: {'ON' if self.sound_mgr.music_enabled else 'OFF'}"
+        self.btn_music.icon = "\u266B"   # ♫ beamed notes
         mx, my = pygame.mouse.get_pos()
         self.btn_theme.draw(surface, mx, my, tick)
         self.btn_sound.draw(surface, mx, my, tick)
@@ -353,11 +393,14 @@ class PauseMenu(MenuBase):
         bw, bh = 240, 48
         by = 280
         gap = 62
-        self.btn_resume = _Button("▶  Resume", cx - bw // 2, by, bw, bh, self.btn_font,
-                                  colour=(45, 80, 45), hover=(60, 140, 60))
-        self.btn_new = _Button("🔄  New Game", cx - bw // 2, by + gap, bw, bh, self.btn_font)
-        self.btn_menu = _Button("🏠  Main Menu", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
-                                colour=(120, 50, 50), hover=(180, 60, 60))
+        self.btn_resume = _Button("Resume", cx - bw // 2, by, bw, bh, self.btn_font,
+                                  colour=(45, 80, 45), hover=(60, 140, 60),
+                                  icon="\u25B6")   # ▶ play triangle
+        self.btn_new = _Button("New Game", cx - bw // 2, by + gap, bw, bh, self.btn_font,
+                               icon="\u21BB")      # ↻ clockwise arrow
+        self.btn_menu = _Button("Main Menu", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
+                                colour=(120, 50, 50), hover=(180, 60, 60),
+                                icon="\u2302")      # ⌂ house
 
     def draw(self, surface):
         overlay = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
@@ -392,10 +435,12 @@ class GameOverScreen(MenuBase):
         bw, bh = 240, 52
         by = 440
         gap = 66
-        self.btn_retry = _Button("🔄  Try Again", cx - bw // 2, by, bw, bh, self.btn_font,
-                                 colour=(34, 139, 34), hover=(50, 180, 50))
-        self.btn_menu = _Button("🏠  Main Menu", cx - bw // 2, by + gap, bw, bh, self.btn_font,
-                                colour=(90, 80, 80), hover=(130, 110, 110))
+        self.btn_retry = _Button("Try Again", cx - bw // 2, by, bw, bh, self.btn_font,
+                                 colour=(34, 139, 34), hover=(50, 180, 50),
+                                 icon="\u21BB")      # ↻ clockwise arrow
+        self.btn_menu = _Button("Main Menu", cx - bw // 2, by + gap, bw, bh, self.btn_font,
+                                colour=(90, 80, 80), hover=(130, 110, 110),
+                                icon="\u2302")      # ⌂ house
 
     def draw(self, surface, result_text, detail_text, tick):
         # dark overlay
