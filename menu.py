@@ -2,12 +2,13 @@
 import pygame
 import math
 import random
+import os
 from constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT, WHITE, BLACK, GRAY, LIGHT_GRAY,
     DARK_GRAY, BORDER_NORMAL, BORDER_CHECK,
     STATE_MENU, STATE_MODE_SELECT, STATE_SETTINGS,
     STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER,
-    STATE_DIFFICULTY_SELECT,
+    STATE_DIFFICULTY_SELECT, ASSETS_DIR,
 )
 import theme as th
 
@@ -58,42 +59,6 @@ class _Button:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Floating chess piece for title background
-# ═══════════════════════════════════════════════════════════════════
-class _FloatingPiece:
-    """A single floating chess unicode symbol that drifts across the screen."""
-    SYMBOLS = ["♔", "♕", "♖", "♗", "♘", "♙", "♚", "♛", "♜", "♝", "♞", "♟"]
-
-    def __init__(self):
-        self.symbol = random.choice(self.SYMBOLS)
-        self.x = random.randint(0, WINDOW_WIDTH)
-        self.y = random.randint(-80, WINDOW_HEIGHT + 80)
-        self.size = random.randint(24, 56)
-        self.alpha = random.randint(15, 45)
-        self.speed_x = random.uniform(-0.3, 0.3)
-        self.speed_y = random.uniform(-0.6, -0.15)
-        self.wobble_phase = random.uniform(0, math.pi * 2)
-        self.wobble_speed = random.uniform(0.01, 0.03)
-        self._font = pygame.font.SysFont("Segoe UI Symbol", self.size)
-
-    def update(self):
-        self.x += self.speed_x + math.sin(self.wobble_phase) * 0.3
-        self.y += self.speed_y
-        self.wobble_phase += self.wobble_speed
-        # Respawn when off screen
-        if self.y < -100:
-            self.y = WINDOW_HEIGHT + random.randint(20, 80)
-            self.x = random.randint(0, WINDOW_WIDTH)
-
-    def draw(self, surface):
-        txt = self._font.render(self.symbol, True, (255, 255, 255))
-        alpha_surf = pygame.Surface(txt.get_size(), pygame.SRCALPHA)
-        alpha_surf.blit(txt, (0, 0))
-        alpha_surf.set_alpha(self.alpha)
-        surface.blit(alpha_surf, (int(self.x), int(self.y)))
-
-
-# ═══════════════════════════════════════════════════════════════════
 #  Menu base
 # ═══════════════════════════════════════════════════════════════════
 class MenuBase:
@@ -136,38 +101,27 @@ class MainMenu(MenuBase):
         self.btn_quit = _Button("✕  Quit", cx - bw // 2, by + gap * 2, bw, bh, self.btn_font,
                                 colour=(100, 40, 40), hover=(160, 50, 50))
 
-        # Floating pieces for background
-        self._floating_pieces = [_FloatingPiece() for _ in range(18)]
+        # Background image
+        self._bg_img = None
+        bg_path = os.path.join(ASSETS_DIR, "bg.png")
+        if os.path.isfile(bg_path):
+            img = pygame.image.load(bg_path).convert()
+            self._bg_img = pygame.transform.smoothscale(img, (WINDOW_WIDTH, WINDOW_HEIGHT))
+
         self._fade_in = 0  # fade-in counter
 
     def draw(self, surface, tick):
         t = th.active_theme()
 
         # ── Background ──────────────────────────────────────────
-        surface.fill((18, 18, 22))
-
-        # Decorative chess board pattern (faded, offset, rotated feel)
-        board_alpha = 12
-        sq = 60
-        for row in range(14):
-            for col in range(20):
-                if (row + col) % 2 == 0:
-                    s = pygame.Surface((sq, sq), pygame.SRCALPHA)
-                    s.fill((255, 255, 255, board_alpha))
-                    surface.blit(s, (col * sq - 30, row * sq - 20))
-
-        # Animated gradient sweep (diagonal)
-        sweep_x = int((tick * 1.5) % (WINDOW_WIDTH + 400)) - 200
-        grad_surf = pygame.Surface((200, WINDOW_HEIGHT), pygame.SRCALPHA)
-        for i in range(200):
-            alpha = int(12 * math.sin(i / 200 * math.pi))
-            pygame.draw.line(grad_surf, (100, 200, 120, alpha), (i, 0), (i, WINDOW_HEIGHT))
-        surface.blit(grad_surf, (sweep_x, 0))
-
-        # ── Floating chess pieces ──────────────────────────────
-        for fp in self._floating_pieces:
-            fp.update()
-            fp.draw(surface)
+        if self._bg_img:
+            surface.blit(self._bg_img, (0, 0))
+            # Dark overlay to ensure text is readable
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 160))
+            surface.blit(overlay, (0, 0))
+        else:
+            surface.fill((18, 18, 22))
 
         # ── Crown / Chess piece hero icon ──────────────────────
         crown = self._crown_font.render("♚", True, BORDER_NORMAL)
