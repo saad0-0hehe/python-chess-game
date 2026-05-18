@@ -44,9 +44,11 @@ STATE_SETTINGS    = "settings"
 STATE_PLAYING     = "playing"
 STATE_PAUSED      = "paused"
 STATE_PROMOTION   = "promotion"
-STATE_GAME_OVER   = "game_over"
+STATE_GAME_OVER          = "game_over"
+STATE_DIFFICULTY_SELECT  = "difficulty_select"
 
 # ── Paths ───────────────────────────────────────────────────────────
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 PIECES_DIR = os.path.join(ASSETS_DIR, "pieces")
+MUSIC_DIR  = os.path.join(ASSETS_DIR, "music")

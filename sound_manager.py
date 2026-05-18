@@ -1,16 +1,20 @@
-"""Procedurally generated sound effects – no external audio files needed."""
+"""Procedurally generated sound effects and background music."""
 import pygame
 import struct
 import math
 import io
 import wave
+import os
+from constants import MUSIC_DIR
 
 
 class SoundManager:
     def __init__(self):
         pygame.mixer.init(44100, -16, 1, 512)
         self.enabled = True
+        self.music_enabled = True
         self._build_sounds()
+        self._generate_music()
 
     # ── helpers ─────────────────────────────────────────────────────
     @staticmethod
@@ -82,6 +86,111 @@ class SoundManager:
         self.snd_game_over = self._make_compound([
             (350, 0.4, 0.4, "sine"), (280, 0.5, 0.35, "sine"),
         ])
+
+    # ── Background music generation ────────────────────────────────
+    def _generate_music(self):
+        """Generate a calm, looping ambient music track for the game."""
+        os.makedirs(MUSIC_DIR, exist_ok=True)
+        self._music_path = os.path.join(MUSIC_DIR, "ambient.wav")
+        if os.path.isfile(self._music_path):
+            return  # already generated
+
+        sr = 44100
+        # ~30 second loop – calm piano-like arpeggiated chords
+        duration = 30.0
+        n = int(sr * duration)
+        samples = [0.0] * n
+
+        # ── Chord progression (C Am F G — classic calm loop) ───────
+        # Each chord lasts ~3.75 seconds (8 chords = 30 sec)
+        chords = [
+            [261.63, 329.63, 392.00],    # C  major (C E G)
+            [261.63, 329.63, 392.00],    # C  major
+            [220.00, 261.63, 329.63],    # Am (A C E)
+            [220.00, 261.63, 329.63],    # Am
+            [349.23, 440.00, 523.25],    # F  major (F A C5)
+            [349.23, 440.00, 523.25],    # F  major
+            [392.00, 493.88, 587.33],    # G  major (G B D5)
+            [392.00, 493.88, 587.33],    # G  major
+        ]
+        chord_dur = duration / len(chords)
+        chord_samples = int(sr * chord_dur)
+
+        # ── Arpeggiate each chord ──────────────────────────────────
+        note_dur = chord_dur / 3  # each note rings for 1/3 of chord
+        note_samples = int(sr * note_dur)
+
+        for ci, chord in enumerate(chords):
+            chord_start = ci * chord_samples
+            for ni, freq in enumerate(chord):
+                note_start = chord_start + ni * note_samples
+                # Each note: soft sine with gentle attack and long release
+                note_len = int(note_dur * 2.5 * sr)  # let it ring longer
+                for i in range(min(note_len, n - note_start)):
+                    t = i / sr
+                    # Soft sine + subtle overtone
+                    v = 0.6 * math.sin(2 * math.pi * freq * t)
+                    v += 0.2 * math.sin(2 * math.pi * freq * 2 * t)
+                    v += 0.1 * math.sin(2 * math.pi * freq * 3 * t)
+                    # Smooth envelope
+                    attack = min(1.0, i / (sr * 0.08))
+                    release = min(1.0, (note_len - i) / (sr * 0.6))
+                    v *= attack * release * 0.18
+                    idx = note_start + i
+                    if idx < n:
+                        samples[idx] += v
+
+        # ── Add a very soft bass pad underneath ────────────────────
+        bass_freqs = [130.81, 130.81, 110.00, 110.00,
+                      174.61, 174.61, 196.00, 196.00]
+        for ci, bf in enumerate(bass_freqs):
+            chord_start = ci * chord_samples
+            for i in range(chord_samples):
+                t = i / sr
+                v = 0.4 * math.sin(2 * math.pi * bf * t)
+                attack = min(1.0, i / (sr * 0.3))
+                release = min(1.0, (chord_samples - i) / (sr * 0.3))
+                v *= attack * release * 0.10
+                idx = chord_start + i
+                if idx < n:
+                    samples[idx] += v
+
+        # ── Normalize and write WAV ────────────────────────────────
+        peak = max(abs(x) for x in samples) or 1
+        with wave.open(self._music_path, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(sr)
+            for s in samples:
+                val = int(s / peak * 28000)
+                w.writeframes(struct.pack("<h", max(-32768, min(32767, val))))
+
+    # ── Music playback API ─────────────────────────────────────────
+    def start_music(self):
+        """Start playing background music on loop."""
+        if self.music_enabled and os.path.isfile(self._music_path):
+            try:
+                pygame.mixer.music.load(self._music_path)
+                pygame.mixer.music.set_volume(0.25)
+                pygame.mixer.music.play(-1)  # loop forever
+            except Exception:
+                pass
+
+    def stop_music(self):
+        """Stop background music."""
+        try:
+            pygame.mixer.music.stop()
+        except Exception:
+            pass
+
+    def toggle_music(self):
+        """Toggle music on/off."""
+        self.music_enabled = not self.music_enabled
+        if self.music_enabled:
+            self.start_music()
+        else:
+            self.stop_music()
+        return self.music_enabled
 
     # ── public API ──────────────────────────────────────────────────
     def _play(self, snd):

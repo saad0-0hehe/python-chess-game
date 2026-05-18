@@ -6,6 +6,7 @@ from constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT, PANEL_X, PANEL_WIDTH, PANEL_TOP,
     STATE_MENU, STATE_MODE_SELECT, STATE_SETTINGS,
     STATE_PLAYING, STATE_PAUSED, STATE_PROMOTION, STATE_GAME_OVER,
+    STATE_DIFFICULTY_SELECT,
     WHITE, GRAY, LIGHT_GRAY, BORDER_NORMAL, BLACK, DARK_GRAY,
 )
 import theme as th
@@ -14,10 +15,14 @@ from move_history import MoveHistory
 from promotion_dialog import PromotionDialog
 from ai_engine import ChessAI
 from sound_manager import SoundManager
-from menu import MainMenu, ModeSelectMenu, SettingsMenu, PauseMenu, GameOverScreen
+from menu import (MainMenu, ModeSelectMenu, DifficultyMenu,
+                  SettingsMenu, PauseMenu, GameOverScreen)
 
 # ── Timer constants ─────────────────────────────────────────────────
 TIMER_DURATION = 10 * 60  # 10 minutes per player in seconds
+
+# ── AI difficulty presets ───────────────────────────────────────────
+DIFFICULTY_DEPTH = {"easy": 1, "medium": 3, "hard": 5}
 
 
 class Game:
@@ -36,6 +41,7 @@ class Game:
         # menus
         self.main_menu = MainMenu()
         self.mode_menu = ModeSelectMenu()
+        self.difficulty_menu = DifficultyMenu()
         self.settings_menu = SettingsMenu(self.sound)
         self.pause_menu = PauseMenu()
         self.game_over_screen = GameOverScreen()
@@ -77,6 +83,9 @@ class Game:
         self._captured_font = pygame.font.SysFont("Segoe UI Symbol", 22)
         self._timer_font = pygame.font.SysFont("Consolas", 28, bold=True)
         self._timer_label_font = pygame.font.SysFont("Segoe UI", 13)
+
+        # Start background music
+        self.sound.start_music()
 
     # ═══════════════════════════════════════════════════════════════
     #  Timer helpers
@@ -186,6 +195,9 @@ class Game:
             return
         if self.state == STATE_MODE_SELECT:
             self.mode_menu.draw(self.screen, self.tick)
+            return
+        if self.state == STATE_DIFFICULTY_SELECT:
+            self.difficulty_menu.draw(self.screen, self.tick)
             return
         if self.state == STATE_SETTINGS:
             self.settings_menu.draw(self.screen, self.tick)
@@ -321,7 +333,7 @@ class Game:
         self._draw_captured(t, x, y + 230)
 
     def _draw_captured(self, t, x, y):
-        """Show captured pieces for each side."""
+        """Show captured pieces for each side, with row wrapping to prevent overlap."""
         _SYMBOLS = {
             chess.PAWN: ("\u2659", "\u265F"), chess.KNIGHT: ("\u2658", "\u265E"),
             chess.BISHOP: ("\u2657", "\u265D"), chess.ROOK: ("\u2656", "\u265C"),
@@ -340,19 +352,42 @@ class Game:
                 lst = black_captured if colour == chess.WHITE else white_captured
                 lst.extend([sym] * diff)
 
-        # White's captures (black pieces taken by white)
+        max_per_row = 8   # max symbols per row before wrapping
+        row_height = 26   # pixel height per row of symbols
+
+        # ── White's captures (black pieces taken by white) ─────────
         lbl = self._status_font.render("White captured:", True, GRAY)
         self.screen.blit(lbl, (x, y))
-        cap_str = " ".join(white_captured) if white_captured else "\u2014"
-        cap = self._captured_font.render(cap_str, True, (200, 200, 200))
-        self.screen.blit(cap, (x, y + 20))
+        cy = y + 20
+        if white_captured:
+            rows = [white_captured[i:i + max_per_row]
+                    for i in range(0, len(white_captured), max_per_row)]
+            for row in rows:
+                cap_str = " ".join(row)
+                cap = self._captured_font.render(cap_str, True, (200, 200, 200))
+                self.screen.blit(cap, (x, cy))
+                cy += row_height
+        else:
+            cap = self._captured_font.render("\u2014", True, (200, 200, 200))
+            self.screen.blit(cap, (x, cy))
+            cy += row_height
 
-        # Black's captures
+        # ── Black's captures (white pieces taken by black) ─────────
+        cy += 6  # small gap between sections
         lbl2 = self._status_font.render("Black captured:", True, GRAY)
-        self.screen.blit(lbl2, (x, y + 52))
-        cap_str2 = " ".join(black_captured) if black_captured else "\u2014"
-        cap2 = self._captured_font.render(cap_str2, True, (200, 200, 200))
-        self.screen.blit(cap2, (x, y + 72))
+        self.screen.blit(lbl2, (x, cy))
+        cy += 20
+        if black_captured:
+            rows = [black_captured[i:i + max_per_row]
+                    for i in range(0, len(black_captured), max_per_row)]
+            for row in rows:
+                cap_str2 = " ".join(row)
+                cap2 = self._captured_font.render(cap_str2, True, (200, 200, 200))
+                self.screen.blit(cap2, (x, cy))
+                cy += row_height
+        else:
+            cap2 = self._captured_font.render("\u2014", True, (200, 200, 200))
+            self.screen.blit(cap2, (x, cy))
 
     # ═══════════════════════════════════════════════════════════════
     #  Input handling
@@ -369,9 +404,24 @@ class Game:
 
         if self.state == STATE_MODE_SELECT:
             result = self.mode_menu.handle_click(pos)
-            if result in ("pvp", "pvai"):
+            if result == "pvp":
                 self.sound.play_menu()
                 self.mode = result
+                self._new_game()
+            elif result == "pvai":
+                self.sound.play_menu()
+                self.mode = result
+                self.state = STATE_DIFFICULTY_SELECT
+            elif result:
+                self.sound.play_menu()
+                self.state = result
+            return
+
+        if self.state == STATE_DIFFICULTY_SELECT:
+            result = self.difficulty_menu.handle_click(pos)
+            if result in ("easy", "medium", "hard"):
+                self.sound.play_menu()
+                self.ai.depth = DIFFICULTY_DEPTH[result]
                 self._new_game()
             elif result:
                 self.sound.play_menu()
