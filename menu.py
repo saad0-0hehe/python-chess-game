@@ -93,14 +93,28 @@ class MenuBase:
         self.title_font = pygame.font.SysFont("Segoe UI", 52, bold=True)
         self.sub_font = pygame.font.SysFont("Segoe UI", 18)
 
-    def _draw_bg(self, surface, t, tick):
-        surface.fill(t["bg"])
-        # subtle animated gradient overlay
-        for i in range(0, WINDOW_HEIGHT, 4):
-            alpha = int(8 + 6 * math.sin((i + tick * 0.4) / 80))
-            bar = pygame.Surface((WINDOW_WIDTH, 4), pygame.SRCALPHA)
-            bar.fill((255, 255, 255, alpha))
-            surface.blit(bar, (0, i))
+        # Background image
+        self._bg_img = None
+        bg_path = os.path.join(ASSETS_DIR, "bg.png")
+        if os.path.isfile(bg_path):
+            img = pygame.image.load(bg_path).convert()
+            self._bg_img = pygame.transform.smoothscale(img, (WINDOW_WIDTH, WINDOW_HEIGHT))
+
+    def _draw_bg(self, surface, t, tick, darkness=180):
+        if self._bg_img:
+            surface.blit(self._bg_img, (0, 0))
+            # Dark overlay to ensure text is readable
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, darkness))
+            surface.blit(overlay, (0, 0))
+        else:
+            surface.fill(t["bg"])
+            # subtle animated gradient overlay
+            for i in range(0, WINDOW_HEIGHT, 4):
+                alpha = int(8 + 6 * math.sin((i + tick * 0.4) / 80))
+                bar = pygame.Surface((WINDOW_WIDTH, 4), pygame.SRCALPHA)
+                bar.fill((255, 255, 255, alpha))
+                surface.blit(bar, (0, i))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -130,27 +144,13 @@ class MainMenu(MenuBase):
                                 colour=(100, 40, 40), hover=(160, 50, 50),
                                 icon="\u2716")  # ✖ heavy X
 
-        # Background image
-        self._bg_img = None
-        bg_path = os.path.join(ASSETS_DIR, "bg.png")
-        if os.path.isfile(bg_path):
-            img = pygame.image.load(bg_path).convert()
-            self._bg_img = pygame.transform.smoothscale(img, (WINDOW_WIDTH, WINDOW_HEIGHT))
-
         self._fade_in = 0  # fade-in counter
 
     def draw(self, surface, tick):
         t = th.active_theme()
 
         # ── Background ──────────────────────────────────────────
-        if self._bg_img:
-            surface.blit(self._bg_img, (0, 0))
-            # Dark overlay to ensure text is readable
-            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 160))
-            surface.blit(overlay, (0, 0))
-        else:
-            surface.fill((18, 18, 22))
+        self._draw_bg(surface, t, tick, darkness=160)
 
         # ── Crown / Chess piece hero icon ──────────────────────
         crown = self._crown_font.render("♚", True, BORDER_NORMAL)
