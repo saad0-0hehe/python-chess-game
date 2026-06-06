@@ -618,6 +618,7 @@ class Game:
         self.ai.thinking = False
         self._ai_move_ready = None
         self.history.scroll_offset = 0
+        self.history._prev_move_count = 0
 
         # Reset timers
         self.white_time = TIMER_DURATION
